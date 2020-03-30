@@ -85,7 +85,15 @@ th{
 							<div class="input-group-prepend">
 								<span class="input-group-text">Refresh (sec):</span>
 							</div>
-							<input id="orderId" type="text" class="form-control" value="30">					
+							<input id="refreshIntervalInput" type="text" class="form-control" value="30">					
+						</div>						
+						</div>
+						<div class ="form-group">
+						<div class="input-group">
+							<div class="input-group-prepend">
+								<span class="input-group-text">Order Expiry (sec):</span>
+							</div>
+							<input id="orderExpiryInput" type="text" class="form-control" value="30">					
 						</div>						
 						</div>
 					</form>
@@ -251,6 +259,22 @@ th{
 var node = document.getElementById('node').value;
 //var node = 'https://hive.3speak.online';
 steem.api.setOptions({useAppbaseApi: true, url: node});
+//The maximum expiration time for any limit order is 28 days from head_block_time
+var maxExpiryDelta = 28 * 24 * 60 * 60 -1;	//-1 for safety (?)
+document.getElementById('orderExpiryInput').value = maxExpiryDelta;	
+
+function getExpiration(delta) {
+	let blockchainTime = new Date(Date.now());
+	blockchainTime.setSeconds(blockchainTime.getSeconds() + delta); 
+	function doubleDigit(digit) {
+		if (digit < 10){
+			digit = '0' + digit ;
+		}
+		return digit;
+	}
+	let expiry = blockchainTime.toISOString().substr(0, blockchainTime.toISOString().length -5);	
+	return expiry
+}
 	
 function getOrderBook() {
 	//var limit = parseFloat(document.getElementById('limitDisplay').value);
@@ -260,8 +284,7 @@ function getOrderBook() {
 		var totalbid = 0;
 		result.asks.forEach((ask, i) => {
 			var askDisplay = document.createElement('tr');
-			askDisplay.classList.add('activeOrder','td-padding-4');
-						
+			askDisplay.classList.add('activeOrder','td-padding-4');						
 			var hbdTD = document.createElement('td');
 			var hbd = ask.order_price.quote;
 			var shortHBD = hbd.substr(0, hbd.length-4);
@@ -397,13 +420,14 @@ function buy() {
 	var amount = parseFloat(document.getElementById('buyAmount').value);	
 	var price = (total/amount).toFixed(6);
 	total = total.toFixed(3) + ' HBD';
-	amount = amount.toFixed(3) + ' HIVE';				
+	amount = amount.toFixed(3) + ' HIVE';					
+	let expiration = getExpiration(maxExpiryDelta);
 	var wif = prompt('Sell ' + amount + ' for a total of ' + total + '?\n(' + price + ' HBD/HIVE)\nConfirm with private active key (wif):');
 	if (wif) {
-		steem.broadcast.limitOrderCreate(wif, user, orderId, total, amount, false, "2020-04-04T00:00:00", function(err, result) {
+		steem.broadcast.limitOrderCreate(wif, user, orderId, total, amount, false, expiration, function(err, result) {
 			console.log(err, result);
 		})
-	}
+	}	
 }
 function sell() {	
 	var orderId = parseFloat(document.getElementById('orderId').value);	
@@ -412,10 +436,11 @@ function sell() {
 	var amount = parseFloat(document.getElementById('sellAmount').value);	
 	var price = (total/amount).toFixed(6);
 	total = total.toFixed(3) + ' HBD';
-	amount = amount.toFixed(3) + ' HIVE';				
+	amount = amount.toFixed(3) + ' HIVE';			
+	let expiration = getExpiration(maxExpiryDelta);
 	var wif = prompt('Sell ' + amount + ' for a total of ' + total + '?\n(' + price + ' HBD/HIVE)\nConfirm with private active key (wif):');
 	if (wif) {
-		steem.broadcast.limitOrderCreate(wif, user, orderId, amount, total, false, "2020-04-04T00:00:00", function(err, result) {
+		steem.broadcast.limitOrderCreate(wif, user, orderId, amount, total, false, expiration, function(err, result) {
 			console.log(err, result);
 		})
 	}
@@ -544,9 +569,12 @@ function coinGecko(currency){
 		})    
 	})
 };
+
+//coinGecko('usd');
+//getTicker();	
 getRecentTrades();
 getOrderBook();
-
+//getUserOrders();
 function refresh() {
 	userCheck();
 	emptyOrders();
